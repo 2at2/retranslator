@@ -3,6 +3,7 @@ package module
 import (
 	"encoding/json"
 	"github.com/2at2/retranslator"
+	"github.com/2at2/retranslator/receiver"
 	"github.com/gorilla/websocket"
 	"github.com/mono83/slf/wd"
 	"io/ioutil"
@@ -10,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/2at2/retranslator/receiver"
 )
 
 var upgrader = websocket.Upgrader{} // use default options

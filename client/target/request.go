@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"fmt"
 )
 
 type Deliver struct {
@@ -32,8 +31,6 @@ func NewDeliver(target string) (*Deliver, error) {
 }
 
 func (d Deliver) Send(reqBody []byte, reqHeader map[string][]string) (*retranslator.Packet, error) {
-	fmt.Println(string(reqBody))
-
 	req := &http.Request{
 		Method: "POST",
 		URL:    d.target,
