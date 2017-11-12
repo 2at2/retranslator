@@ -153,11 +153,11 @@ func (h *InnerHandler) handleCallback(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	w.WriteHeader(response.StatusCode)
-
 	for key, values := range response.Header {
 		w.Header().Add(key, strings.Join(values, "\n"))
 	}
+
+	w.WriteHeader(response.StatusCode)
 
 	w.Write(response.Body)
 
