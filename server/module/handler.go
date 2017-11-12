@@ -3,7 +3,7 @@ package module
 import (
 	"encoding/json"
 	"github.com/2at2/retranslator"
-	"github.com/2at2/retranslator/receiver"
+	"github.com/2at2/retranslator/server"
 	"github.com/gorilla/websocket"
 	"github.com/mono83/slf/wd"
 	"io/ioutil"
@@ -17,7 +17,7 @@ var upgrader = websocket.Upgrader{} // use default options
 var log = wd.NewLogger("handler")
 
 type Handler struct {
-	Hub *receiver.Hub
+	Hub *server.Hub
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -62,14 +62,14 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	addr := ":" + strconv.Itoa(init.Port)
 
-	log.Info("Serve :addr/:path", wd.StringParam("addr", addr), wd.StringParam("path", init.Path))
+	log.Info("Serve :addr:path", wd.StringParam("addr", addr), wd.StringParam("path", init.Path))
 
 	// New server listener
-	server := &http.Server{Addr: addr, Handler: InnerHandler{
+	httpServer := &http.Server{Addr: addr, Handler: InnerHandler{
 		transport: transport,
 	}}
 
-	defer server.Close()
+	defer httpServer.Close()
 
 	// Ping
 	go func() {
@@ -81,12 +81,12 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(time.Millisecond * 500)
 		}
 
-		server.Close()
+		httpServer.Close()
 		return
 	}()
 
 	// Listen
-	if err := server.ListenAndServe(); err != nil {
+	if err := httpServer.ListenAndServe(); err != nil {
 		log.Error("HTTP server error - :err", wd.ErrParam(err))
 	}
 }
@@ -118,9 +118,12 @@ func (h *InnerHandler) handleCallback(w http.ResponseWriter, r *http.Request) er
 
 	defer r.Body.Close()
 
-	p := retranslator.Packet{
-		Header: r.Header,
-		Body:   body,
+	p := retranslator.RequestPacket{
+		Headers:    r.Header,
+		Body:       body,
+		RequestUri: r.RequestURI,
+		Method:     r.Method,
+		Ip:         r.RemoteAddr,
 	}
 
 	jsn, err := p.GetBytes()
@@ -141,7 +144,7 @@ func (h *InnerHandler) handleCallback(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	var response retranslator.Packet
+	var response retranslator.ResponsePacket
 
 	err = json.Unmarshal(bts, &response)
 

@@ -11,35 +11,61 @@ import (
 )
 
 type Deliver struct {
-	target *url.URL
-	cl     *http.Client
-	log    wd.Watchdog
+	targetUrl  *url.URL
+	forwardUri bool
+	cl         *http.Client
+	log        wd.Watchdog
 }
 
-func NewDeliver(target string) (*Deliver, error) {
-	uri, err := url.Parse(target)
+func NewDeliver(targetUrl string, forwardUri bool) (*Deliver, error) {
+	uri, err := url.Parse(targetUrl)
 
 	if err != nil {
 		return nil, err
 	}
 
 	return &Deliver{
-		target: uri,
-		cl:     &http.Client{},
-		log:    wd.NewLogger("deliver"),
+		targetUrl:  uri,
+		forwardUri: forwardUri,
+		cl:         &http.Client{},
+		log:        wd.NewLogger("deliver"),
 	}, nil
 }
 
-func (d Deliver) Send(reqBody []byte, reqHeader map[string][]string) (*retranslator.Packet, error) {
+func (d Deliver) BuildTargetUrl(uri string) *url.URL {
+
+	if d.forwardUri { // return target url with injected uri
+		targetUrl := *d.targetUrl
+		uriParts := strings.SplitN(uri, "?", 2)
+		targetUrl.Path = uriParts[0]
+		if len(uriParts) > 1 {
+			targetUrl.RawQuery = uriParts[1]
+		} else {
+			targetUrl.RawQuery = ""
+		}
+
+		return &targetUrl
+	} else { // return unchanged target url
+		urlCopy := *d.targetUrl
+		// return copy to protect origin url from changes
+		return &urlCopy
+	}
+}
+
+func (d Deliver) Send(reqPacket retranslator.RequestPacket) (*retranslator.ResponsePacket, error) {
+
+	targetUrl := d.BuildTargetUrl(reqPacket.RequestUri)
+	d.log.Info("Request local url " + targetUrl.String())
+
 	req := &http.Request{
-		Method: "POST",
-		URL:    d.target,
-		Body:   ioutil.NopCloser(bytes.NewReader(reqBody)),
+		Method: reqPacket.Method,
+		URL:    targetUrl,
+		Body:   ioutil.NopCloser(bytes.NewReader(reqPacket.Body)),
 		Header: make(http.Header),
 	}
 
-	if reqHeader != nil {
-		for key, values := range reqHeader {
+	if reqPacket.Headers != nil {
+		for key, values := range reqPacket.Headers {
 			req.Header.Add(key, strings.Join(values, "\n"))
 		}
 	}
@@ -73,7 +99,7 @@ func (d Deliver) Send(reqBody []byte, reqHeader map[string][]string) (*retransla
 		}
 	}
 
-	return &retranslator.Packet{
+	return &retranslator.ResponsePacket{
 		StatusCode: statusCode,
 		Status:     status,
 		Header:     header,

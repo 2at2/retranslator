@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	"github.com/2at2/retranslator/receiver"
-	"github.com/2at2/retranslator/receiver/module"
+	"github.com/2at2/retranslator/server"
+	"github.com/2at2/retranslator/server/module"
 	"github.com/mono83/slf/recievers/ansi"
 	"github.com/mono83/slf/wd"
 	"net/http"
@@ -26,12 +26,12 @@ func main() {
 	signal.Notify(interrupt, os.Interrupt)
 
 	// Hub
-	hub := &receiver.Hub{}
+	hub := &server.Hub{}
 	hub.Init()
 
 	// Client http
 	go func() {
-		log.Info("Http client on port :port", wd.IntParam("port", port))
+		log.Info("Wait for clients on port :port", wd.IntParam("port", port))
 
 		err := http.ListenAndServe(":"+strconv.Itoa(port), module.Handler{Hub: hub})
 
