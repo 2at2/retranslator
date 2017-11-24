@@ -23,12 +23,12 @@ release/server-linux
 Listens port and responds information about request.
 
 Params:
-* -path - path for requests (default "/api")
-* -port - port for requests
-* -serverAddr - Server address. Example: 127.0.0.1:8080 (default "127.0.0.1:8080")
-* -targetAddr - Target address for requests transmitting. Example: 127.0.0.1:80/callback
+* -serverAddr - Retranslator server address. Example: 127.0.0.1:8029 (default "127.0.0.1:8029")
+* -port - Port for requests. Retranslator will listen this port and forward requests to client. Default *8080*.
+* -targetAddr - Target address for requests transmitting. Example: 127.0.0.1:80/callback (default *localhost*)
+* -forwardUri - Flag to apply requested uri (path and query string) to targetAddr. Default *true*.
 
 Command:
 ```
-release/client-linux -serverAddr 192.168.1.1:8029 -path /myCallback -port 9001 -targetAddr http://localhost/myCallback
+release/client-linux -serverAddr 192.168.1.1:8029 -port 8080 -targetAddr http://localhost/myCallback
 ```

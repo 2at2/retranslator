@@ -12,16 +12,19 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"fmt"
 )
 
 func main() {
 	var serverAddr, path, targetAddr string
+	var forwardUri bool
 	var port int
 
-	flag.StringVar(&serverAddr, "serverAddr", "127.0.0.1:8080", "127.0.0.1:8080")
-	flag.StringVar(&path, "path", "/api", "callback path")
-	flag.IntVar(&port, "port", 80, "callback path")
-	flag.StringVar(&targetAddr, "targetAddr", "127.0.0.1:8080", "127.0.0.1:8080")
+	flag.StringVar(&serverAddr, "serverAddr", "127.0.0.1:8029", "127.0.0.1:8029")
+	flag.StringVar(&path, "path", "/", "callback path, not used now")
+	flag.IntVar(&port, "port", 8080, "callback port")
+	flag.StringVar(&targetAddr, "targetAddr", "localhost", "Url to transmit requests")
+	flag.BoolVar(&forwardUri, "forwardUri", true, "Apply requested uri to targetAddr or not")
 	flag.Parse()
 
 	if len(serverAddr) == 0 {
@@ -41,24 +44,24 @@ func main() {
 	}
 	serverAddr = strings.TrimPrefix(serverAddr, "http://")
 	serverAddr = strings.TrimPrefix(serverAddr, "https://")
-	path = strings.TrimPrefix(path, "/")
+	path = "/" + strings.TrimPrefix(path, "/")
 
 	wd.AddReceiver(ansi.New(true, true, false))
 
-	var log = wd.NewLogger("receiver")
+	var log = wd.NewLogger("client")
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, os.Interrupt)
 
-	log.Info("Target :addr", wd.StringParam("addr", targetAddr))
-	log.Info("Server :addr", wd.StringParam("addr", serverAddr))
-	log.Info("Serve path *::port/:path", wd.IntParam("port", port), wd.StringParam("path", path))
+	log.Info("Retranslator Listens *::port:path*", wd.IntParam("port", port), wd.StringParam("path", path))
+	log.Info("Target Url :addr", wd.StringParam("addr", targetAddr))
+	log.Info("Forward Uri :forwardUri", wd.StringParam("forwardUri", fmt.Sprint(forwardUri)))
 
-	receiverUrl := url.URL{Scheme: "ws", Host: serverAddr, Path: "/"}
+	serverUrl := url.URL{Scheme: "ws", Host: serverAddr, Path: "/"}
 
-	log.Info("Connecting to :url", wd.StringParam("url", receiverUrl.String()))
+	log.Info("Connecting to server :url", wd.StringParam("url", serverUrl.String()))
 
-	c, _, err := websocket.DefaultDialer.Dial(receiverUrl.String(), nil)
+	c, _, err := websocket.DefaultDialer.Dial(serverUrl.String(), nil)
 
 	if err != nil {
 		log.Error("Dial error - :err", wd.ErrParam(err))
@@ -67,15 +70,13 @@ func main() {
 
 	defer c.Close()
 
-	targetUrl, err := url.Parse(targetAddr)
-
 	if err != nil {
 		panic(err)
 	}
 
 	terminate := make(chan bool, 1)
 
-	deliver, err := target.NewDeliver(targetAddr)
+	deliver, err := target.NewDeliver(targetAddr, forwardUri)
 
 	if err != nil {
 		panic(err)
@@ -111,8 +112,6 @@ func main() {
 				panic(err)
 			}
 
-			log.Info("Received message")
-
 			switch messageType {
 			case websocket.TextMessage:
 				message <- body
@@ -129,26 +128,31 @@ func main() {
 		case body := <-message:
 			var log = wd.NewLogger("receiver")
 
-			var pack retranslator.Packet
+			var request retranslator.RequestPacket
 
-			err := json.Unmarshal(body, &pack)
+			err := json.Unmarshal(body, &request)
 
 			if err != nil {
-				log.Error("Failed to unmarshal packet - :err", wd.ErrParam(err))
+				log.Error("Failed to unmarshal request - :err", wd.ErrParam(err))
 				terminate <- true
 				continue
 			}
 
-			log.Info("Transferring to :url", wd.StringParam("url", targetUrl.String()))
+			log.Info(
+				"Received request on :uri method=:method ip=:ip",
+				wd.StringParam("uri", request.RequestUri),
+				wd.StringParam("method", request.Method),
+				wd.StringParam("ip", strings.Split(request.Ip, ":")[0]),
+			)
 
-			packet, err := deliver.Send(pack.Body, pack.Header)
+			response, err := deliver.Send(request)
 
 			if err != nil {
 				log.Error("Unable to transfer message - :err", wd.ErrParam(err))
 				continue
 			}
 
-			jsn, err := json.Marshal(packet)
+			jsn, err := json.Marshal(response)
 
 			if err != nil {
 				log.Error("Unable to encode body to json- :err", wd.ErrParam(err))

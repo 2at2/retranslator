@@ -15,9 +15,9 @@ release: ## Builds release
 	@rm -rf release/
 	@mkdir -p release/
 	GOOS="linux" go build -o release/client-linux client/main/main.go
-	GOOS="linux" go build -o release/server-linux receiver/main/main.go
+	GOOS="linux" go build -o release/server-linux server/main/main.go
 	GOOS="darwin" go build -o release/client-darwin client/main/main.go
-	GOOS="darwin" go build -o release/server-darwin receiver/main/main.go
+	GOOS="darwin" go build -o release/server-darwin server/main/main.go
 	@printf "\n\033[0;32mDone\033[0m\n"
 
 help:
